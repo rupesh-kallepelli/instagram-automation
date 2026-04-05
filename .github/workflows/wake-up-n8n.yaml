@@ -4,7 +4,7 @@ on:
     #Every day at 6 am IST
     - cron: '0 23 * * *'
     #Every day at 9:00 pm IST
-    - cron: '0 21 * * *'
+    - cron: '05 15 * * *'
 name: Wake Up n8n
 jobs:
   wake-up:
