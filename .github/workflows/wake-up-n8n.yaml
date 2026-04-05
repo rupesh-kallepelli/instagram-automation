@@ -5,8 +5,8 @@ on:
   schedule:
   # 6 AM IST (00:30 UTC)
   - cron: '30 0 * * *'
-  # 9 PM IST (15:30 UTC)
-  - cron: '40 15 * * *'
+  # 6 PM IST (09:30 UTC)
+  - cron: '30 9 * * *'
 
 jobs:
   wake-up:
