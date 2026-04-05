@@ -1,0 +1,27 @@
+image:
+  repository: n8nio/n8n
+  tag: latest
+
+resources:
+  limits:
+    cpu: '1'
+    memory: 2Gi
+  requests:
+    cpu: 200m
+    memory: 512Mi
+
+auth:
+  user: admin
+  password: admin123
+
+persistence:
+  enabled: true
+  size: 1Gi
+  storageClass: ""
+
+service:
+  port: 5678
+
+route:
+  enabled: true
+  host: ""

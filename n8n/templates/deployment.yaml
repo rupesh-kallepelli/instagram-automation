@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: n8n
+  template:
+    metadata:
+      labels:
+        app: n8n
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: n8n
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          ports:
+            - containerPort: 5678
+          env:
+            - name: N8N_BASIC_AUTH_ACTIVE
+              value: "true"
+            - name: N8N_BASIC_AUTH_USER
+              value: "{{ .Values.auth.user }}"
+            - name: N8N_BASIC_AUTH_PASSWORD
+              value: "{{ .Values.auth.password }}"
+            - name: NODE_ENV
+              value: "production"
+            - name: DB_TYPE
+              value: "postgresdb"
+            - name: N8N_USER_FOLDER
+              value: "/home/n8n/.n8n"
+            - name: DB_POSTGRESDB_SSL_CA
+              value: "/certs/ca.pem"
+            - name: N8N_HOST
+              value: n8n-kallepallirupesh-dev.apps.rm2.thpm.p1.openshiftapps.com
+            - name: N8N_PROTOCOL
+              value: https
+            - name: WEBHOOK_URL
+              value: https://n8n-kallepallirupesh-dev.apps.rm2.thpm.p1.openshiftapps.com
+            - name: N8N_EDITOR_BASE_URL
+              value: https://n8n-kallepallirupesh-dev.apps.rm2.thpm.p1.openshiftapps.com
+          envFrom:
+            - secretRef:
+                name: n8n-db-secret
+          volumeMounts:
+            - name: data
+              mountPath: /home/n8n/.n8n
+            - name: db-ca
+              mountPath: /certs
+              readOnly: true
+          resources:
+{{ toYaml .Values.resources | indent 12 }}
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: n8n-pvc
+        - name: db-ca
+          secret:
+            secretName: n8n-db-ca

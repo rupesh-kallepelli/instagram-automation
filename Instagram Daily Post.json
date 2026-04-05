@@ -1,0 +1,742 @@
+{
+  "name": "Instagram Daily Post",
+  "nodes": [
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -928,
+        -112
+      ],
+      "id": "af734231-1527-496a-9206-b378320d6101",
+      "name": "When clicking ‘Execute workflow’"
+    },
+    {
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "value": "1S7l0XWNT3fZBJNXX2Hzdt-13aXVkxyayHuyJOtxDxvg",
+          "mode": "list",
+          "cachedResultName": "instagram_content_engine",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1S7l0XWNT3fZBJNXX2Hzdt-13aXVkxyayHuyJOtxDxvg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1S7l0XWNT3fZBJNXX2Hzdt-13aXVkxyayHuyJOtxDxvg/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        -720,
+        -112
+      ],
+      "id": "51954896-50a9-4d21-af89-de4c27708b5b",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "zpge3mh35CT8uGjE",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// ================= GET ALL ROWS =================\nconst items = $input.all();\n\n// ================= FILTER PENDING =================\nconst pendingItems = items.filter(item => {\n  return (item.json.status || \"\").toLowerCase() === \"pending\";\n});\n\nif (pendingItems.length === 0) return [];\n\n// ================= FIND LOWEST ID =================\nconst nextItem = pendingItems.reduce((min, current) => {\n  return Number(current.json.id) < Number(min.json.id) ? current : min;\n});\n\nconst input = nextItem.json;\n\n// ================= HELPERS =================\nfunction escapeHtml(value) {\n  return String(value ?? \"\")\n    .replace(/&/g, \"&amp;\")\n    .replace(/</g, \"&lt;\")\n    .replace(/>/g, \"&gt;\")\n    .replace(/\"/g, \"&quot;\")\n    .replace(/'/g, \"&#39;\");\n}\n\nfunction nl2br(value) {\n  return escapeHtml(value).replace(/\\r?\\n/g, \"<br>\");\n}\n\nfunction hasValue(value) {\n  return String(value ?? \"\").trim() !== \"\";\n}\n\nfunction buildOptions(options) {\n  if (!hasValue(options)) return \"\";\n\n  return `\n    <div class=\"options-wrap\">\n      ${options\n        .split(/\\r?\\n/)\n        .map(opt => `<div class=\"option\">${escapeHtml(opt)}</div>`)\n        .join(\"\")}\n    </div>\n  `;\n}\n\n// ================= BASE STYLE =================\nfunction getBaseHTML(content) {\n  return `\n  <html>\n  <head>\n  <meta charset=\"UTF-8\" />\n  <style>\n  ${/* KEEP SAME CSS */\"\"}\n  * { box-sizing: border-box; }\n  body {\n    width: 1080px;\n    min-height: 1080px;\n    margin: 0;\n    padding: 50px;\n    display: flex;\n    align-items: center;\n    justify-content: center;\n    background: url(\"https://res.cloudinary.com/djawhg3xw/image/upload/v1775386257/S_m1zryf.png\") no-repeat center;\n    background-size: cover;\n    font-family: 'Segoe UI', sans-serif;\n    position: relative;\n  }\n  body::before {\n    content: \"\";\n    position: absolute;\n    inset: 0;\n    background: rgba(0, 0, 0, 0.65);\n  }\n  .card {\n    position: relative;\n    width: 100%;\n    max-width: 900px;\n    padding: 35px;\n    border-radius: 28px;\n    background: rgba(15, 15, 15, 0.78);\n    backdrop-filter: blur(10px);\n    box-shadow: 0 0 60px rgba(255, 180, 0, 0.25);\n    border: 1px solid rgba(255, 200, 0, 0.28);\n    color: #f3f4f6;\n  }\n  h1 { color: #fbbf24; text-align:center; }\n  h2 { color: #facc15; }\n  p { font-size: 22px; }\n  .solution-box { background: rgba(34,197,94,0.12); padding:14px; border-radius:14px; }\n  .quiz-box { background: rgba(59,130,246,0.12); padding:14px; border-radius:14px; }\n  .option { margin:5px 0; padding:10px; background: rgba(255,255,255,0.05); border-radius:8px; }\n  .answer-box { margin-top:12px; padding:10px; background: rgba(34,197,94,0.15); border-radius:10px; }\n  pre { background:#020617; color:#38bdf8; padding:16px; border-radius:12px; }\n  </style>\n  </head>\n  <body>\n    <div class=\"card\">\n      ${content}\n    </div>\n  </body>\n  </html>\n  `;\n}\n\n// ================= MAIN CONTENT =================\nfunction generateContentHTML(data) {\n  return getBaseHTML(`\n    <h1>${escapeHtml(data.title)}</h1>\n\n    ${hasValue(data.problem) ? `\n      <h2>⚠️ Problem</h2>\n      <p>${nl2br(data.problem)}</p>` : \"\"}\n\n    ${hasValue(data.solution) ? `\n      <div class=\"solution-box\">\n        <h2>✅ Solution</h2>\n        <p>${nl2br(data.solution)}</p>\n      </div>` : \"\"}\n\n    ${hasValue(data.code) ? `\n      <h2>💻 Code</h2>\n      <pre>${escapeHtml(data.code)}</pre>` : \"\"}\n  `);\n}\n\n// ================= QUICK CHECK =================\nfunction generateQuickCheckHTML(data) {\n  if (!hasValue(data.question)) return \"\";\n\n  return getBaseHTML(`\n    <h1>🤔 Quick Check</h1>\n    <p>${nl2br(data.question)}</p>\n    ${buildOptions(data.options)}\n  `);\n}\n\n// ================= ANSWER =================\nfunction generateAnswerHTML(data) {\n  if (!hasValue(data.answer)) return \"\";\n\n  return getBaseHTML(`\n    <h1>✅ Answer</h1>\n    <div class=\"answer-box\">\n      ${escapeHtml(data.answer)}\n    </div>\n  `);\n}\n\n// ================= BUILD =================\nconst contentHTML = generateContentHTML(input);\nconst quickCheckHTML = generateQuickCheckHTML(input);\nconst answerHTML = generateAnswerHTML(input);\n\n// ================= CAPTION =================\nlet enhancedCaption = \"\";\n\nif (input.caption) enhancedCaption += input.caption + \"\\n\\n\";\nif (input.question) {\n  enhancedCaption += \"👇 Comment your answer before checking!\\nSave this for later 🚀\";\n  enhancedCaption += \"🤔 \" + input.question + \"\\n\\n\";\n  if (input.options) enhancedCaption += input.options + \"\\n\\n\";\n  if (input.answer) enhancedCaption += \"✅ Answer: \" + input.answer + \"\\n\\n\";\n}\n\n// ================= OUTPUT =================\nreturn [\n  {\n    json: {\n      htmlArray: [\n        contentHTML,\n        quickCheckHTML,\n        answerHTML\n      ].filter(Boolean), // remove empty ones\n      caption: enhancedCaption,\n      id: input.id\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -528,
+        -112
+      ],
+      "id": "a45b23ce-327b-4993-992e-7b04fc194ddf",
+      "name": "Format the sheet row to HTML"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $json.htmlArray.map(html => {\n  return {\n    json: {\n      html\n    }\n  };\n});"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        64,
+        -592
+      ],
+      "id": "26a853cd-4813-4e97-878d-9a8826ee70ec",
+      "name": "Extract Only HTML array"
+    },
+    {
+      "parameters": {
+        "jsCode": "return $input.all().map(item => ({\n  json: {\n    url: item.json.url\n  }\n}));"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        64,
+        -352
+      ],
+      "id": "c6790728-3977-4be1-b266-6331e193556b",
+      "name": "Extract Only Image URLS"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      children: $input.all().map(item => item.json.id).join(',')\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        512,
+        -352
+      ],
+      "id": "e0429bcc-6361-4af7-bd0c-b3c2c6f07589",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        64,
+        -112
+      ],
+      "id": "d5ef7c47-4a2f-418d-8525-289e5e6f0fca",
+      "name": "Merge1"
+    },
+    {
+      "parameters": {
+        "jsCode": "return [\n  {\n    json: {\n      caption: $input.first().json.caption,\n      postId: $input.first().json.id\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -528,
+        80
+      ],
+      "id": "ac30c428-dfbe-442b-bb6d-c845aa3cf6a6",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "value": "1S7l0XWNT3fZBJNXX2Hzdt-13aXVkxyayHuyJOtxDxvg",
+          "mode": "list",
+          "cachedResultName": "instagram_content_engine",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1S7l0XWNT3fZBJNXX2Hzdt-13aXVkxyayHuyJOtxDxvg/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1S7l0XWNT3fZBJNXX2Hzdt-13aXVkxyayHuyJOtxDxvg/edit#gid=0"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "status": "published",
+            "id": "={{ $json.postId }}",
+            "PermaLink": "={{ $json.permalink }}"
+          },
+          "matchingColumns": [
+            "id"
+          ],
+          "schema": [
+            {
+              "id": "id",
+              "displayName": "id",
+              "required": false,
+              "defaultMatch": true,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "date",
+              "displayName": "date",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "type",
+              "displayName": "type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "problem",
+              "displayName": "problem",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "solution",
+              "displayName": "solution",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "code",
+              "displayName": "code",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "question",
+              "displayName": "question",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "options",
+              "displayName": "options",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "answer",
+              "displayName": "answer",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "caption",
+              "displayName": "caption",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "PermaLink",
+              "displayName": "PermaLink",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1296,
+        144
+      ],
+      "id": "2ab9d975-b030-4255-9904-f9df9f4cea68",
+      "name": "Append or update row in sheet",
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "zpge3mh35CT8uGjE",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combineBy": "combineByPosition",
+        "numberInputs": 3,
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        1040,
+        128
+      ],
+      "id": "921e4b5d-02b5-4a08-9eb7-4b2808167423",
+      "name": "Merge2"
+    },
+    {
+      "parameters": {
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v23.0",
+        "node": "17841454810545940",
+        "edge": "media",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "image_url",
+                "value": "={{ $json.url }}"
+              },
+              {
+                "name": "is_carousel_item",
+                "value": "true"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        304,
+        -352
+      ],
+      "id": "a1809861-48f4-42a5-b7f2-ee080cb4dcf1",
+      "name": "Upload Photos",
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "gQ1yNAEJtEJ0H5Nn",
+          "name": "Facebook Graph account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v23.0",
+        "node": "17841454810545940",
+        "edge": "media_publish",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "creation_id",
+                "value": "={{$json.id}}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        512,
+        -112
+      ],
+      "id": "9149d639-3496-4c18-970f-bfbf11e9aecd",
+      "name": "Publish post",
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "gQ1yNAEJtEJ0H5Nn",
+          "name": "Facebook Graph account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "httpRequestMethod": "POST",
+        "graphApiVersion": "v23.0",
+        "node": "17841454810545940",
+        "edge": "media",
+        "options": {
+          "queryParameters": {
+            "parameter": [
+              {
+                "name": "media_type",
+                "value": "=CAROUSEL"
+              },
+              {
+                "name": "children",
+                "value": "={{ $json.children }}"
+              },
+              {
+                "name": "caption",
+                "value": "={{ $json.caption }}"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        304,
+        -112
+      ],
+      "id": "87309f42-c68e-47f0-a13d-b5ccea2f5084",
+      "name": "Group uploaded photos",
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "gQ1yNAEJtEJ0H5Nn",
+          "name": "Facebook Graph account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.screenshotone.com/take",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_key",
+              "value": "G3cdsTcaeSox2Q"
+            }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "viewport_width",
+              "value": "1080"
+            },
+            {
+              "name": "viewport_width",
+              "value": "1080"
+            },
+            {
+              "name": "format",
+              "value": "png"
+            },
+            {
+              "name": "delay",
+              "value": "30"
+            },
+            {
+              "name": "html",
+              "value": "={{$json.html}}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        304,
+        -592
+      ],
+      "id": "34f07ce7-f01c-46e1-8d57-6c4b7364933c",
+      "name": "Convert the html to image",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.cloudinary.com/v1_1/djawhg3xw/image/upload",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "file",
+              "inputDataFieldName": "data"
+            },
+            {
+              "name": "upload_preset",
+              "value": "nqex0JuIGSnipTtJfz7D0R8BzUs"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        512,
+        -592
+      ],
+      "id": "9f9cf6b6-9dfc-40d2-a5ff-2da7933a1e5b",
+      "name": "Upload the image to cloudinary",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "graphApiVersion": "v23.0",
+        "node": "={{ $json.id }}",
+        "options": {
+          "fields": {
+            "field": [
+              {
+                "name": "permalink"
+              }
+            ]
+          }
+        }
+      },
+      "type": "n8n-nodes-base.facebookGraphApi",
+      "typeVersion": 1,
+      "position": [
+        752,
+        -112
+      ],
+      "id": "f19b86b7-18d6-4948-9832-8d4cf94cbd83",
+      "name": "Fetch Permalink from post",
+      "credentials": {
+        "facebookGraphApi": {
+          "id": "gQ1yNAEJtEJ0H5Nn",
+          "name": "Facebook Graph account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Format the sheet row to HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format the sheet row to HTML": {
+      "main": [
+        [
+          {
+            "node": "Extract Only HTML array",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Only HTML array": {
+      "main": [
+        [
+          {
+            "node": "Convert the html to image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract Only Image URLS": {
+      "main": [
+        [
+          {
+            "node": "Upload Photos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Merge1",
+            "type": "main",
+            "index": 1
+          },
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 2
+          }
+        ]
+      ]
+    },
+    "Merge1": {
+      "main": [
+        [
+          {
+            "node": "Group uploaded photos",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append or update row in sheet": {
+      "main": [
+        []
+      ]
+    },
+    "Merge2": {
+      "main": [
+        [
+          {
+            "node": "Append or update row in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload Photos": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Publish post": {
+      "main": [
+        [
+          {
+            "node": "Fetch Permalink from post",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Group uploaded photos": {
+      "main": [
+        [
+          {
+            "node": "Publish post",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Convert the html to image": {
+      "main": [
+        [
+          {
+            "node": "Upload the image to cloudinary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload the image to cloudinary": {
+      "main": [
+        [
+          {
+            "node": "Extract Only Image URLS",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch Permalink from post": {
+      "main": [
+        [
+          {
+            "node": "Merge2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "5cdf1e3d-6afa-4423-b79e-e917745f8498",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "06de8ac8e449acf9b2839a5f9ce9cc34f397dfd6d99940f9d2067cd39f1431fb"
+  },
+  "id": "ie3tdgc00JVnAdAc",
+  "tags": []
+}

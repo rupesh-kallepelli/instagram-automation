@@ -1,0 +1,37 @@
+on:
+  workflow_dispatch:
+name: deploy n8n
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v3
+
+      - name: Install OpenShift CLI
+        uses: redhat-actions/oc-installer@v1
+
+      - name: Login to OpenShift
+        run: |
+          oc login ${{ secrets.OPENSHIFT_SERVER }} \
+            --token=${{ secrets.OPENSHIFT_TOKEN }} \
+            --insecure-skip-tls-verify
+
+      - name: Select project
+        run: |
+          oc project ${{ secrets.OPENSHIFT_NAMESPACE }}
+
+      - name: Helm Lint n8n
+        run: |
+          helm lint ./n8n
+
+      - name: Helm Template n8n
+        run: |
+          helm template n8n ./n8n
+
+      - name: Upgrading n8n
+        run: |
+          helm upgrade -i n8n \
+            ./n8n \
+            --set namespace=${{ secrets.OPENSHIFT_NAMESPACE }} \
+            --set ocProject=${{ secrets.OPENSHIFT_CLUSTER }}

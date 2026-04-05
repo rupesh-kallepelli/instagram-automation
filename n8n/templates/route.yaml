@@ -1,0 +1,14 @@
+{{- if .Values.route.enabled }}
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: n8n
+spec:
+  to:
+    kind: Service
+    name: n8n
+  port:
+    targetPort: {{ .Values.service.port }}
+  tls:
+    termination: edge
+  {{- end }}
