@@ -1,0 +1,2 @@
+oc create token helm-deployer
+oc policy add-role-to-user edit system:serviceaccount:kallepallirupesh-dev:helm-deployer -n kallepallirupesh-dev
