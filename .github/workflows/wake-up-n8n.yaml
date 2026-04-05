@@ -1,14 +1,17 @@
+name: Wake Up n8n
+
 on:
   workflow_dispatch:
   schedule:
-    #Every day at 6 am IST
-    - cron: '0 23 * * *'
-    #Every day at 9:00 pm IST
-    - cron: '05 15 * * *'
-name: Wake Up n8n
+  # 6 AM IST (00:30 UTC)
+  - cron: '30 0 * * *'
+  # 9 PM IST (15:30 UTC)
+  - cron: '40 15 * * *'
+
 jobs:
   wake-up:
     runs-on: ubuntu-latest
+
     steps:
       - name: Install OpenShift CLI
         uses: redhat-actions/oc-installer@v1
@@ -23,8 +26,17 @@ jobs:
         run: |
           oc project ${{ secrets.OPENSHIFT_NAMESPACE }}
 
-      - name: Deployment rollout restart
+      - name: Restart Deployment (Safe Way)
         run: |
-          oc scale deployment n8n --replicas=0
-          sleep 10
-          oc scale deployment n8n --replicas=1
+          echo "Scaling down..."
+          oc scale deployment n8n --replicas=0 -n ${{ secrets.OPENSHIFT_NAMESPACE }}
+
+          echo "Waiting for pods to terminate..."
+          sleep 15
+
+          echo "Scaling up..."
+          oc scale deployment n8n --replicas=1 -n ${{ secrets.OPENSHIFT_NAMESPACE }}
+
+      - name: Wait for rollout
+        run: |
+          oc rollout status deployment/n8n -n ${{ secrets.OPENSHIFT_NAMESPACE }}
