@@ -6,9 +6,14 @@ ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 
 # 🔥 Install system dependencies (FFmpeg + basic libs)
+# Install Playwright dependencies
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     curl \
+    wget \
+    gnupg \
+    && pip install playwright \
+    && playwright install --with-deps chromium \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 

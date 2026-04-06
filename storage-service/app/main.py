@@ -3,7 +3,7 @@ import time
 import subprocess
 from uuid import uuid4
 from typing import List
-
+from playwright.async_api import async_playwright
 from fastapi import FastAPI, UploadFile, File, Form
 from gtts import gTTS
 
@@ -111,6 +111,34 @@ def build_tts_segments(title, problem, solution, caption):
 
     return segments
 
+@app.post("/generate/image")
+async def html_to_image(html: str = Form(...)):
+    try:
+        filename = f"img_{int(time.time())}.png"
+        output_path = os.path.join(IMAGE_PATH, filename)
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page()
+
+            await page.set_viewport_size({"width": 1080, "height": 1080})
+
+            await page.set_content(html, wait_until="networkidle")
+
+            await page.screenshot(path=output_path, full_page=True)
+
+            await browser.close()
+
+        return {
+            "status": "success",
+            "image_url": f"{BASE_URL}/media/images/{filename}"
+        }
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": str(e)
+        }
 
 @app.post("/generate/audio/segments")
 async def generate_audio_segments(
