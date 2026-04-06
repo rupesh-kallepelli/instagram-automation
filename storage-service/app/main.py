@@ -173,7 +173,7 @@ async def generate_audio_segments(
             filename = f"audio_{timestamp}_{idx}.mp3"
             path = os.path.join(AUDIO_PATH, filename)
 
-            tts = gTTS(text=text)
+            gTTS(text=text, lang="en", slow=True)
             tts.save(path)
 
             audio_files.append(f"{BASE_URL}/media/audio/{filename}")
@@ -218,85 +218,90 @@ async def generate_reel(req: ReelRequest):
 
         image_paths = []
 
-        # 🔥 STEP 1: Download images
+        # ------------------ STEP 1: Download images ------------------
         for idx, url in enumerate(req.image_urls):
             temp_file = os.path.join(TEMP_PATH, f"{timestamp}_{idx}.png")
-
-            response = requests.get(url, timeout=10)
-            if response.status_code != 200:
-                raise Exception(f"Failed to download image: {url}")
-
+            r = requests.get(url, timeout=10)
+            r.raise_for_status()
             with open(temp_file, "wb") as f:
-                f.write(response.content)
-
+                f.write(r.content)
             image_paths.append(temp_file)
 
-        # 🔥 STEP 2: Create concat file
-        input_txt = os.path.join(TEMP_PATH, f"{timestamp}.txt")
+        # ------------------ STEP 2: Audio handling ------------------
+        audio_path = None
+        slide_duration = req.duration_per_slide
 
-        with open(input_txt, "w") as f:
-            for p in image_paths:
-                f.write(f"file '{p}'\n")
-                f.write(f"duration {req.duration_per_slide}\n")
+        if req.audio_url:
+            audio_path = os.path.join(
+                AUDIO_PATH,
+                req.audio_url.split("/")[-1]
+            )
+            if not os.path.exists(audio_path):
+                raise Exception("Audio file not found")
+
+            audio_duration = get_audio_duration(audio_path)
+            slide_duration = audio_duration / len(image_paths)
+
+        # ------------------ STEP 3: Build concat file ------------------
+        concat_path = os.path.join(TEMP_PATH, f"{timestamp}.txt")
+
+        with open(concat_path, "w") as f:
+            for img in image_paths:
+                f.write(f"file '{img}'\n")
+                f.write(f"duration {slide_duration}\n")
             f.write(f"file '{image_paths[-1]}'\n")
 
-        # 🔥 STEP 3: Output
+        # ------------------ STEP 4: FFmpeg command ------------------
         output_name = f"reel_{timestamp}.mp4"
         output_path = os.path.join(VIDEO_PATH, output_name)
 
-        # 🔥 STEP 4: Build FFmpeg command (CORRECT ORDER)
+        filters = (
+            "scale=1080:1920:force_original_aspect_ratio=decrease,"
+            "pad=1080:1920:(ow-iw)/2:(oh-ih)/2,"
+            "format=yuv420p"
+        )
+
         command = [
-            "ffmpeg",
-            "-y",
+            "ffmpeg", "-y",
             "-f", "concat",
             "-safe", "0",
-            "-i", input_txt
+            "-i", concat_path
         ]
 
-        # ✅ Add audio BEFORE filters
-        audio_file = None
-        if req.audio_url:
-            audio_file = os.path.join(AUDIO_PATH, req.audio_url.split("/")[-1])
-            if os.path.exists(audio_file):
-                command.extend(["-i", audio_file])
+        if audio_path:
+            command.extend(["-i", audio_path])
 
-        # ✅ Filters AFTER inputs
         command.extend([
-            "-vf", "scale=1080:1920,zoompan=z='min(zoom+0.002,1.5)',format=yuv420p",
-            "-vsync", "vfr",
-            "-pix_fmt", "yuv420p",
+            "-vf", filters,
+            "-r", "30",
             "-c:v", "libx264",
-            "-c:a", "aac"
+            "-preset", "medium",
+            "-pix_fmt", "yuv420p",
+            "-c:a", "aac",
+            "-movflags", "+faststart",
+            "-shortest",
+            output_path
         ])
 
-        # ✅ shortest AFTER filters
-        if audio_file:
-            command.append("-shortest")
-
-        command.append(output_path)
-
-        # 🔥 Execute
         subprocess.run(command, check=True)
 
-        # 🔥 Cleanup
+        # ------------------ STEP 5: Cleanup ------------------
         for p in image_paths:
             os.remove(p)
-        os.remove(input_txt)
+        os.remove(concat_path)
 
         return {
             "status": "success",
             "video_url": f"{BASE_URL}/media/videos/{output_name}",
             "slides": len(image_paths),
-            "duration": len(image_paths) * req.duration_per_slide,
-            "audio_enabled": bool(audio_file),
+            "slide_duration": round(slide_duration, 2),
+            "audio_enabled": bool(audio_path),
             "processing_time_ms": int((time.time() - start) * 1000)
         }
 
     except Exception as e:
-        return {
-            "status": "error",
-            "message": str(e)
-        }
+        return {"status": "error", "message": str(e)}
+
 # ------------------ HEALTH ------------------
 @app.get("/health")
 def health():
