@@ -212,32 +212,40 @@ async def generate_audio_segments(
 
 @app.post("/generate/reel")
 async def generate_reel(req: ReelRequest):
+    start = time.time()
+    timestamp = int(start)
+    image_paths = []
+
     try:
-        start = time.time()
-        timestamp = int(start)
-
-        image_paths = []
-
-        # ------------------ STEP 1: Download images ------------------
+        # ------------------ STEP 1: Download images (STREAMED) ------------------
         for idx, url in enumerate(req.image_urls):
             temp_file = os.path.join(TEMP_PATH, f"{timestamp}_{idx}.png")
-            r = requests.get(url, timeout=10)
+
+            r = requests.get(url, stream=True, timeout=15)
             r.raise_for_status()
+
             with open(temp_file, "wb") as f:
-                f.write(r.content)
+                for chunk in r.iter_content(chunk_size=8192):
+                    if chunk:
+                        f.write(chunk)
+
             image_paths.append(temp_file)
+
+        if not image_paths:
+            raise Exception("No images downloaded")
 
         # ------------------ STEP 2: Audio handling ------------------
         audio_path = None
-        slide_duration = req.duration_per_slide
+        slide_duration = float(req.duration_per_slide)
 
         if req.audio_url:
             audio_path = os.path.join(
                 AUDIO_PATH,
                 req.audio_url.split("/")[-1]
             )
-            if not os.path.exists(audio_path):
-                raise Exception("Audio file not found")
+
+            if not os.path.isfile(audio_path):
+                raise Exception(f"Audio file not found: {audio_path}")
 
             audio_duration = get_audio_duration(audio_path)
             slide_duration = audio_duration / len(image_paths)
@@ -251,18 +259,20 @@ async def generate_reel(req: ReelRequest):
                 f.write(f"duration {slide_duration}\n")
             f.write(f"file '{image_paths[-1]}'\n")
 
-        # ------------------ STEP 4: FFmpeg command ------------------
+        # ------------------ STEP 4: Prepare FFmpeg command ------------------
         output_name = f"reel_{timestamp}.mp4"
         output_path = os.path.join(VIDEO_PATH, output_name)
 
-        filters = (
+        video_filter = (
             "scale=1080:1920:force_original_aspect_ratio=decrease,"
             "pad=1080:1920:(ow-iw)/2:(oh-ih)/2,"
             "format=yuv420p"
         )
 
         command = [
-            "ffmpeg", "-y",
+            "ffmpeg",
+            "-loglevel", "error",      # ✅ suppress noisy logs
+            "-y",
             "-f", "concat",
             "-safe", "0",
             "-i", concat_path
@@ -272,7 +282,7 @@ async def generate_reel(req: ReelRequest):
             command.extend(["-i", audio_path])
 
         command.extend([
-            "-vf", filters,
+            "-vf", video_filter,
             "-r", "30",
             "-c:v", "libx264",
             "-preset", "medium",
@@ -283,12 +293,24 @@ async def generate_reel(req: ReelRequest):
             output_path
         ])
 
-        subprocess.run(command, check=True)
+        # ------------------ STEP 5: Run FFmpeg SAFELY (NON‑BLOCKING) ------------------
+        result = await asyncio.to_thread(
+            subprocess.run,
+            command,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE
+        )
 
-        # ------------------ STEP 5: Cleanup ------------------
+        if result.returncode != 0:
+            raise Exception(result.stderr.decode() or "FFmpeg failed")
+
+        # ------------------ STEP 6: Cleanup ------------------
         for p in image_paths:
-            os.remove(p)
-        os.remove(concat_path)
+            if os.path.exists(p):
+                os.remove(p)
+
+        if os.path.exists(concat_path):
+            os.remove(concat_path)
 
         return {
             "status": "success",
@@ -300,7 +322,14 @@ async def generate_reel(req: ReelRequest):
         }
 
     except Exception as e:
-        return {"status": "error", "message": str(e)}
+        # ✅ Cleanup even on failure
+        for p in image_paths:
+            if os.path.exists(p):
+                os.remove(p)
+        return {
+            "status": "error",
+            "message": str(e)
+        }
 
 def get_audio_duration(audio_path: str) -> float:
     cmd = [
