@@ -115,7 +115,7 @@ def build_tts_segments(title, problem, solution, caption):
 @app.post("/generate/image")
 async def html_to_image(html: str = Form(...)):
     try:
-        filename = f"img_{int(time.time())}.png"
+        filename = f"img_{uuid4()}.png"
         output_path = os.path.join(IMAGE_PATH, filename)
 
         async with async_playwright() as p:
@@ -128,7 +128,11 @@ async def html_to_image(html: str = Form(...)):
 
             await page.set_content(html, wait_until="networkidle")
 
-            await page.screenshot(path=output_path, full_page=True)
+            # 🔥 wait for fonts + rendering
+            await page.evaluate("document.fonts.ready")
+            await page.wait_for_timeout(1000)
+
+            await page.screenshot(path=output_path)
 
             await browser.close()
 
