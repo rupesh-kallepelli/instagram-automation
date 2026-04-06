@@ -94,11 +94,10 @@ async def upload_audio(file: UploadFile = File(...)):
 @app.post("/generate/audio")
 async def generate_audio(text: str = Form(...)):
     try:
-        filename = f"audio_{uuid4()}.mp3"
+        filename = f"audio_{uuid4()}.wav"
         path = os.path.join(AUDIO_PATH, filename)
 
-        tts = gTTS(text=text)
-        tts.save(path)
+        generate_tts_piper(text, path)
 
         return {
             "status": "success",
@@ -108,7 +107,19 @@ async def generate_audio(text: str = Form(...)):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
-
+def generate_tts_piper(text: str, output_path: str):
+    """
+    Generate speech using Piper TTS (offline, CPU-only, male voice)
+    """
+    subprocess.run(
+        [
+            "piper",
+            "--model", "en_US-hfc_male-medium",
+            "--output_file", output_path
+        ],
+        input=text.encode("utf-8"),
+        check=True
+    )
 # ------------------ TEXT → SEGMENTS ------------------
 def build_tts_segments(title, problem, solution, caption):
     segments = []
@@ -178,33 +189,37 @@ async def generate_audio_segments(
         temp_audio_paths = []
         timestamp = int(time.time())
 
-        # 🔥 Generate audio per segment
+        # ✅ Generate audio per segment using Piper
         for idx, text in enumerate(segments):
-            filename = f"audio_{timestamp}_{idx}.mp3"
+            filename = f"audio_{timestamp}_{idx}.wav"
             path = os.path.join(AUDIO_PATH, filename)
 
-            tts = gTTS(text=text, lang="en", slow=True)
-            tts.save(path)
+            generate_tts_piper(text, path)
 
             audio_files.append(f"{BASE_URL}/media/audio/{filename}")
             temp_audio_paths.append(path)
 
-        # 🔥 Merge audio into single file
-        merged_name = f"audio_merged_{timestamp}.mp3"
+        # ✅ Merge audio
+        merged_name = f"audio_merged_{timestamp}.wav"
         merged_path = os.path.join(AUDIO_PATH, merged_name)
 
-        command = ["ffmpeg"]
+        concat_file = os.path.join(TEMP_PATH, f"audio_concat_{timestamp}.txt")
+        with open(concat_file, "w") as f:
+            for p in temp_audio_paths:
+                f.write(f"file '{p}'\n")
 
-        for f in temp_audio_paths:
-            command.extend(["-i", f])
+        subprocess.run(
+            [
+                "ffmpeg", "-y",
+                "-f", "concat", "-safe", "0",
+                "-i", concat_file,
+                "-filter:a", "atempo=1.15",   # ✅ medium voice speed
+                merged_path
+            ],
+            check=True
+        )
 
-        command.extend([
-            "-filter_complex", f"concat=n={len(temp_audio_paths)}:v=0:a=1",
-            "-y",
-            merged_path
-        ])
-
-        subprocess.run(command, check=True)
+        os.remove(concat_file)
 
         return {
             "status": "success",
@@ -216,7 +231,6 @@ async def generate_audio_segments(
 
     except Exception as e:
         return {"status": "error", "message": str(e)}
-
 
 # ------------------ GENERATE REEL ------------------
 
