@@ -32,6 +32,8 @@ async def upload_video(file: UploadFile = File(...)):
 
 @app.post("/upload/image")
 async def upload_image(file: UploadFile = File(...)):
+    if not (file.filename.endswith(".jpg") or file.filename.endswith(".jpeg") or file.filename.endswith(".png")):
+        filename+= ".jpg"  # Default to .jpg if no valid extension provided
     filename = generate_filename("img", file.filename)
     file_path = os.path.join(IMAGE_PATH, filename)
 

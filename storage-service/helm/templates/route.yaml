@@ -7,7 +7,7 @@ spec:
     kind: Service
     name: storage-service
   port:
-    targetPort: 80
+    targetPort: 8080
   tls:
     termination: edge
   wildcardPolicy: None

@@ -4,4 +4,22 @@ metadata:
   name: nginx-config
 data:
   default.conf: |
-{{ .Files.Get "nginx/default.conf" | indent 4 }}
+    server {
+        listen 8080;
+
+        client_max_body_size 100M;
+
+        # Serve static files
+        location /media/ {
+            alias /data/media/;
+        }
+
+        # Proxy all other requests to FastAPI
+        location / {
+            proxy_pass http://127.0.0.1:8000;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }

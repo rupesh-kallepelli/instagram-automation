@@ -16,14 +16,38 @@ spec:
 
       # 🔥 NGINX
       - name: nginx
-        image: {{ .Values.nginx.image }}
+        image: nginx:latest
         ports:
-          - containerPort: 80
+          - containerPort: 8080
         volumeMounts:
           - name: media-storage
             mountPath: /data
+
+          # ✅ FIX: writable runtime dir
+          - name: nginx-run
+            mountPath: /run
+
+          # ✅ OPTIONAL: cache dir (recommended)
+          - name: nginx-cache
+            mountPath: /var/cache/nginx
+
           - name: nginx-config
             mountPath: /etc/nginx/conf.d
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8080
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        securityContext:
+          runAsNonRoot: false
+          allowPrivilegeEscalation: false
 
       # 🔥 FASTAPI
       - name: fastapi
@@ -36,6 +60,21 @@ spec:
         volumeMounts:
           - name: media-storage
             mountPath: /data
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 10
+          periodSeconds: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 5
+        securityContext:
+          runAsNonRoot: false
+          allowPrivilegeEscalation: false
 
       volumes:
         - name: media-storage
@@ -45,3 +84,11 @@ spec:
         - name: nginx-config
           configMap:
             name: nginx-config
+
+        # ✅ FIX: runtime writable
+        - name: nginx-run
+          emptyDir: {}
+
+        # ✅ OPTIONAL: cache
+        - name: nginx-cache
+          emptyDir: {}
