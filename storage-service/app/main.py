@@ -120,10 +120,10 @@ def build_tts_segments(title, problem, solution, caption):
         segments.append(title)
 
     if problem:
-        segments.append(problem[:120])
+        segments.append(problem)
 
     if solution:
-        segments.append(solution[:120])
+        segments.append(solution)
 
     segments.append("Save this and follow for more")
 
