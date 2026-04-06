@@ -118,7 +118,7 @@ async def html_to_image(html: str = Form(...)):
         output_path = os.path.join(IMAGE_PATH, filename)
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch()
+            browser = await p.chromium.launch(args=["--no-sandbox"])
             page = await browser.new_page()
 
             await page.set_viewport_size({"width": 1080, "height": 1080})
