@@ -7,7 +7,13 @@ from playwright.async_api import async_playwright
 from fastapi import FastAPI, UploadFile, File, Form
 from gtts import gTTS
 import requests
+from pydantic import BaseModel
+from typing import List, Optional
 
+class ReelRequest(BaseModel):
+    image_urls: List[str]
+    duration_per_slide: int = 2
+    audio_url: Optional[str] = None
 app = FastAPI()
 
 # ------------------ PATHS ------------------
@@ -205,11 +211,7 @@ async def generate_audio_segments(
 # ------------------ GENERATE REEL ------------------
 
 @app.post("/generate/reel")
-async def generate_reel(
-    image_urls: List[str],
-    duration_per_slide: int = Form(2),
-    audio_url: str = Form(None)
-):
+async def generate_reel(req: ReelRequest):
     try:
         start = time.time()
         timestamp = int(start)
@@ -217,7 +219,7 @@ async def generate_reel(
         image_paths = []
 
         # 🔥 STEP 1: Download images
-        for idx, url in enumerate(image_urls):
+        for idx, url in enumerate(req.image_urls):
             temp_file = os.path.join(TEMP_PATH, f"{timestamp}_{idx}.png")
 
             response = requests.get(url)
@@ -235,7 +237,7 @@ async def generate_reel(
         with open(input_txt, "w") as f:
             for p in image_paths:
                 f.write(f"file '{p}'\n")
-                f.write(f"duration {duration_per_slide}\n")
+                f.write(f"duration {req.duration_per_slide}\n")
             f.write(f"file '{image_paths[-1]}'\n")
 
         # 🔥 STEP 3: Output video
@@ -254,8 +256,8 @@ async def generate_reel(
         ]
 
         # 🔥 STEP 4: Add audio
-        if audio_url:
-            audio_file = os.path.join(AUDIO_PATH, audio_url.split("/")[-1])
+        if req.audio_url:
+            audio_file = os.path.join(AUDIO_PATH, req.audio_url.split("/")[-1])
             if os.path.exists(audio_file):
                 command.extend(["-i", audio_file, "-shortest"])
 
@@ -272,8 +274,8 @@ async def generate_reel(
             "status": "success",
             "video_url": f"{BASE_URL}/media/videos/{output_name}",
             "slides": len(image_paths),
-            "duration": len(image_paths) * duration_per_slide,
-            "audio_enabled": bool(audio_url),
+            "duration": len(image_paths) * req.duration_per_slide,
+            "audio_enabled": bool(req.audio_url),
             "processing_time_ms": int((time.time() - start) * 1000)
         }
 
