@@ -16,6 +16,14 @@ class ReelRequest(BaseModel):
     image_urls: List[str]
     duration_per_slide: int = 2
     audio_url: Optional[str] = None
+
+class ClipRequest(BaseModel):
+    image_url: str
+    audio_urls: List[str]
+
+class MergeClipsRequest(BaseModel):
+    clip_urls: List[str]
+    
 app = FastAPI()
 
 # ------------------ PATHS ------------------
@@ -343,6 +351,122 @@ def get_audio_duration(audio_path: str) -> float:
     ]
     result = subprocess.check_output(cmd).decode().strip()
     return float(result)
+
+def download_file(url: str, path: str):
+    r = requests.get(url, stream=True, timeout=20)
+    r.raise_for_status()
+    with open(path, "wb") as f:
+        for chunk in r.iter_content(8192):
+            if chunk:
+                f.write(chunk)
+                
+def merge_and_speed_audio(audio_paths: List[str], output_audio: str):
+    list_file = output_audio.replace(".mp3", ".txt")
+
+    with open(list_file, "w") as f:
+        for a in audio_paths:
+            f.write(f"file '{a}'\n")
+
+    cmd = [
+        "ffmpeg", "-y",
+        "-f", "concat", "-safe", "0",
+        "-i", list_file,
+        "-filter:a", "atempo=1.15",  # ✅ medium speed
+        "-c:a", "mp3",
+        output_audio
+    ]
+
+    subprocess.run(cmd, check=True)
+    os.remove(list_file)
+
+def image_audio_to_video(image_path: str, audio_path: str, output_path: str):
+    cmd = [
+        "ffmpeg", "-y",
+        "-loop", "1",
+        "-i", image_path,
+        "-i", audio_path,
+        "-vf",
+        "scale=1080:1920:force_original_aspect_ratio=decrease,"
+        "pad=1080:1920:(ow-iw)/2:(oh-ih)/2,"
+        "format=yuv420p",
+        "-c:v", "libx264",
+        "-preset", "ultrafast",  # ✅ fast → avoids 504
+        "-c:a", "aac",
+        "-shortest",
+        output_path
+    ]
+
+    subprocess.run(cmd, check=True)
+
+@app.post("/generate/clip")
+async def generate_clip(req: ClipRequest):
+    ts = int(time.time())
+
+    image_path = f"{TEMP_PATH}/img_{ts}.png"
+    audio_paths = []
+    merged_audio = f"{TEMP_PATH}/audio_{ts}.mp3"
+    output_video = f"{VIDEO_PATH}/clip_{ts}.mp4"
+
+    try:
+        # 1️⃣ Download image
+        download_file(req.image_url, image_path)
+
+        # 2️⃣ Download audios
+        for i, url in enumerate(req.audio_urls):
+            ap = f"{TEMP_PATH}/a_{ts}_{i}.mp3"
+            download_file(url, ap)
+            audio_paths.append(ap)
+
+        # 3️⃣ Merge + speed‑fix audio
+        merge_and_speed_audio(audio_paths, merged_audio)
+
+        # 4️⃣ Image + audio → video
+        image_audio_to_video(image_path, merged_audio, output_video)
+
+        return {
+            "status": "success",
+            "video_url": f"{BASE_URL}/media/videos/clip_{ts}.mp4"
+        }
+
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+@app.post("/merge/clips")
+async def merge_clips(req: MergeClipsRequest):
+    ts = int(time.time())
+    local_clips = []
+
+    try:
+        # 1️⃣ Download clips in order
+        for i, url in enumerate(req.clip_urls):
+            path = f"{TEMP_PATH}/clip_{ts}_{i}.mp4"
+            download_file(url, path)
+            local_clips.append(path)
+
+        # 2️⃣ Build concat file
+        concat_file = f"{TEMP_PATH}/concat_{ts}.txt"
+        with open(concat_file, "w") as f:
+            for c in local_clips:
+                f.write(f"file '{c}'\n")
+
+        # 3️⃣ Merge (NO re‑encode → fast)
+        output_video = f"{VIDEO_PATH}/reel_{ts}.mp4"
+        subprocess.run([
+            "ffmpeg", "-y",
+            "-f", "concat", "-safe", "0",
+            "-i", concat_file,
+            "-c", "copy",
+            output_video
+        ], check=True)
+
+        return {
+            "status": "success",
+            "video_url": f"{BASE_URL}/media/videos/reel_{ts}.mp4"
+        }
+
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
 
 # ------------------ HEALTH ------------------
 @app.get("/health")
