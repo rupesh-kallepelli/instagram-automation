@@ -8,7 +8,6 @@ from uuid import uuid4
 from typing import List
 from playwright.async_api import async_playwright
 from fastapi import FastAPI, UploadFile, File, Form
-from gtts import gTTS
 from pydantic import BaseModel
 from typing import List, Optional
 

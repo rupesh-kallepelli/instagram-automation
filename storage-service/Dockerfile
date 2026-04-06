@@ -1,13 +1,11 @@
 FROM python:3.11-slim
 
 ENV PYTHONUNBUFFERED=1
+ENV PLAYWRIGHT_BROWSERS_PATH=/tmp/playwright
 
 WORKDIR /app
 
-# 🔥 FIX: set playwright path
-ENV PLAYWRIGHT_BROWSERS_PATH=/tmp/playwright
-
-# Install dependencies
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     curl \
@@ -32,13 +30,20 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
+# Install Python deps + Playwright
 COPY app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt \
     && playwright install chromium \
-    && piper --download-voice en_US-hfc_male-medium
+    && mkdir -p /voices \
+    && wget -O /voices/en_US-hfc_male-medium.onnx \
+       https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/hfc_male/medium/en_US-hfc_male-medium.onnx \
+    && wget -O /voices/en_US-hfc_male-medium.onnx.json \
+       https://huggingface.co/rhasspy/piper-voices/resolve/main/en/en_US/hfc_male/medium/en_US-hfc_male-medium.onnx.json
 
+# Copy app
 COPY app/ .
 
+# Create runtime dirs
 RUN mkdir -p /data/media/videos /data/media/images /data/media/audio /tmp/playwright
 
 EXPOSE 8000
