@@ -173,7 +173,7 @@ async def generate_audio_segments(
             filename = f"audio_{timestamp}_{idx}.mp3"
             path = os.path.join(AUDIO_PATH, filename)
 
-            gTTS(text=text, lang="en", slow=True)
+            tts = gTTS(text=text, lang="en", slow=True)
             tts.save(path)
 
             audio_files.append(f"{BASE_URL}/media/audio/{filename}")
