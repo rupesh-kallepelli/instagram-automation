@@ -6,6 +6,7 @@ from typing import List
 from playwright.async_api import async_playwright
 from fastapi import FastAPI, UploadFile, File, Form
 from gtts import gTTS
+import requests
 
 app = FastAPI()
 
@@ -77,7 +78,7 @@ async def upload_audio(file: UploadFile = File(...)):
 @app.post("/generate/audio")
 async def generate_audio(text: str = Form(...)):
     try:
-        filename = f"audio_{int(time.time())}.mp3"
+        filename = f"audio_{uuid4()}.mp3"
         path = os.path.join(AUDIO_PATH, filename)
 
         tts = gTTS(text=text)
@@ -202,9 +203,10 @@ async def generate_audio_segments(
 
 
 # ------------------ GENERATE REEL ------------------
+
 @app.post("/generate/reel")
 async def generate_reel(
-    files: List[UploadFile] = File(...),
+    image_urls: List[str],
     duration_per_slide: int = Form(2),
     audio_url: str = Form(None)
 ):
@@ -214,16 +216,20 @@ async def generate_reel(
 
         image_paths = []
 
-        # 🔥 Save images
-        for idx, file in enumerate(files):
+        # 🔥 STEP 1: Download images
+        for idx, url in enumerate(image_urls):
             temp_file = os.path.join(TEMP_PATH, f"{timestamp}_{idx}.png")
 
+            response = requests.get(url)
+            if response.status_code != 200:
+                raise Exception(f"Failed to download image: {url}")
+
             with open(temp_file, "wb") as f:
-                f.write(await file.read())
+                f.write(response.content)
 
             image_paths.append(temp_file)
 
-        # 🔥 Create concat file
+        # 🔥 STEP 2: Create concat file
         input_txt = os.path.join(TEMP_PATH, f"{timestamp}.txt")
 
         with open(input_txt, "w") as f:
@@ -232,6 +238,7 @@ async def generate_reel(
                 f.write(f"duration {duration_per_slide}\n")
             f.write(f"file '{image_paths[-1]}'\n")
 
+        # 🔥 STEP 3: Output video
         output_name = f"reel_{timestamp}.mp4"
         output_path = os.path.join(VIDEO_PATH, output_name)
 
@@ -246,7 +253,7 @@ async def generate_reel(
             "-pix_fmt", "yuv420p"
         ]
 
-        # 🔥 Add audio
+        # 🔥 STEP 4: Add audio
         if audio_url:
             audio_file = os.path.join(AUDIO_PATH, audio_url.split("/")[-1])
             if os.path.exists(audio_file):
@@ -256,7 +263,7 @@ async def generate_reel(
 
         subprocess.run(command, check=True)
 
-        # 🔥 Cleanup
+        # 🔥 STEP 5: Cleanup
         for p in image_paths:
             os.remove(p)
         os.remove(input_txt)
@@ -271,8 +278,10 @@ async def generate_reel(
         }
 
     except Exception as e:
-        return {"status": "error", "message": str(e)}
-
+        return {
+            "status": "error",
+            "message": str(e)
+        }
 
 # ------------------ HEALTH ------------------
 @app.get("/health")

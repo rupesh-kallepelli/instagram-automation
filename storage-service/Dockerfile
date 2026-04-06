@@ -33,10 +33,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 COPY app/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
-
-# 🔥 INSTALL BROWSER HERE
-RUN playwright install chromium
+RUN pip install --no-cache-dir -r requirements.txt && playwright install chromium
 
 COPY app/ .
 
