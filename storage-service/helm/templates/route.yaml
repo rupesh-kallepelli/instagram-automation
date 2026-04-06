@@ -1,0 +1,13 @@
+apiVersion: route.openshift.io/v1
+kind: Route
+metadata:
+  name: storage-service
+spec:
+  to:
+    kind: Service
+    name: storage-service
+  port:
+    targetPort: 80
+  tls:
+    termination: edge
+  wildcardPolicy: None

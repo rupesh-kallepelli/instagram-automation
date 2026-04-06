@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: storage-service
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: storage-service
+  template:
+    metadata:
+      labels:
+        app: storage-service
+    spec:
+      containers:
+
+      # 🔥 NGINX
+      - name: nginx
+        image: {{ .Values.nginx.image }}
+        ports:
+          - containerPort: 80
+        volumeMounts:
+          - name: media-storage
+            mountPath: /data
+          - name: nginx-config
+            mountPath: /etc/nginx/conf.d
+
+      # 🔥 FASTAPI
+      - name: fastapi
+        image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+        env:
+          - name: BASE_URL
+            value: {{ .Values.baseUrl }}
+        ports:
+          - containerPort: 8000
+        volumeMounts:
+          - name: media-storage
+            mountPath: /data
+
+      volumes:
+        - name: media-storage
+          persistentVolumeClaim:
+            claimName: media-pvc
+
+        - name: nginx-config
+          configMap:
+            name: nginx-config

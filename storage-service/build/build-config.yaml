@@ -1,0 +1,21 @@
+apiVersion: build.openshift.io/v1
+kind: BuildConfig
+metadata:
+  name: storage-service
+spec:
+  source:
+    type: Git
+    git:
+      uri: https://github.com/rupesh-kallepelli/instagram-automation.git
+      ref: main
+    contextDir: storage-service
+
+  strategy:
+    type: Docker
+    dockerStrategy:
+      dockerfilePath: Dockerfile
+
+  output:
+    to:
+      kind: ImageStreamTag
+      name: storage-service:latest

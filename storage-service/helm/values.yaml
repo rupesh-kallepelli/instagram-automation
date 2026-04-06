@@ -1,0 +1,17 @@
+replicaCount: 1
+
+image:
+  repository: image-registry.openshift-image-registry.svc:5000/kallepallirupesh-dev/storage-service
+  tag: latest
+
+nginx:
+  image: nginx:latest
+
+service:
+  type: ClusterIP
+  port: 80
+
+persistence:
+  enabled: true
+  size: 5Gi
+baseUrl: "https://storage-service-kallepallirupesh-dev.apps.rm2.thpm.p1.openshiftapps.com"
