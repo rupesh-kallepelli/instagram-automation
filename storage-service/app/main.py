@@ -18,6 +18,7 @@ TEMP_PATH = "/tmp"
 
 BASE_URL = os.getenv("BASE_URL", "http://localhost")
 
+os.environ["PLAYWRIGHT_BROWSERS_PATH"] = "/tmp/playwright"
 os.makedirs(VIDEO_PATH, exist_ok=True)
 os.makedirs(IMAGE_PATH, exist_ok=True)
 os.makedirs(AUDIO_PATH, exist_ok=True)
@@ -118,7 +119,9 @@ async def html_to_image(html: str = Form(...)):
         output_path = os.path.join(IMAGE_PATH, filename)
 
         async with async_playwright() as p:
-            browser = await p.chromium.launch(args=["--no-sandbox"])
+            browser = await p.chromium.launch(
+                args=["--no-sandbox", "--disable-dev-shm-usage"]
+            )
             page = await browser.new_page()
 
             await page.set_viewport_size({"width": 1080, "height": 1080})

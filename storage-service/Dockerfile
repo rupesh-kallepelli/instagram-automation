@@ -4,7 +4,10 @@ ENV PYTHONUNBUFFERED=1
 
 WORKDIR /app
 
-# 🔥 Install system dependencies
+# 🔥 FIX: set playwright path
+ENV PLAYWRIGHT_BROWSERS_PATH=/tmp/playwright
+
+# Install dependencies
 RUN apt-get update && apt-get install -y \
     ffmpeg \
     curl \
@@ -28,18 +31,15 @@ RUN apt-get update && apt-get install -y \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
-# 🔥 Install Python deps
 COPY app/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 🔥 Install Playwright browsers (CRITICAL)
+# 🔥 INSTALL BROWSER HERE
 RUN playwright install chromium
 
-# 🔥 Copy app
 COPY app/ .
 
-# 🔥 Create directories
-RUN mkdir -p /data/media/videos /data/media/images /data/media/audio /tmp
+RUN mkdir -p /data/media/videos /data/media/images /data/media/audio /tmp/playwright
 
 EXPOSE 8000
 

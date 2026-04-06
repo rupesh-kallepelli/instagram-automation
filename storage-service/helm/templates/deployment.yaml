@@ -60,6 +60,8 @@ spec:
         volumeMounts:
           - name: media-storage
             mountPath: /data
+          - name: playwright-cache
+            mountPath: /tmp/playwright
         livenessProbe:
           httpGet:
             path: /health
@@ -91,4 +93,6 @@ spec:
 
         # ✅ OPTIONAL: cache
         - name: nginx-cache
+          emptyDir: {}
+        - name: playwright-cache
           emptyDir: {}
