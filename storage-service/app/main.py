@@ -222,7 +222,7 @@ async def generate_reel(req: ReelRequest):
         for idx, url in enumerate(req.image_urls):
             temp_file = os.path.join(TEMP_PATH, f"{timestamp}_{idx}.png")
 
-            response = requests.get(url)
+            response = requests.get(url, timeout=10)
             if response.status_code != 200:
                 raise Exception(f"Failed to download image: {url}")
 
@@ -240,32 +240,45 @@ async def generate_reel(req: ReelRequest):
                 f.write(f"duration {req.duration_per_slide}\n")
             f.write(f"file '{image_paths[-1]}'\n")
 
-        # 🔥 STEP 3: Output video
+        # 🔥 STEP 3: Output
         output_name = f"reel_{timestamp}.mp4"
         output_path = os.path.join(VIDEO_PATH, output_name)
 
+        # 🔥 STEP 4: Build FFmpeg command (CORRECT ORDER)
         command = [
             "ffmpeg",
             "-y",
             "-f", "concat",
             "-safe", "0",
-            "-i", input_txt,
-            "-vf", "scale=1080:1920,zoompan=z='min(zoom+0.002,1.5)',format=yuv420p",
-            "-vsync", "vfr",
-            "-pix_fmt", "yuv420p"
+            "-i", input_txt
         ]
 
-        # 🔥 STEP 4: Add audio
+        # ✅ Add audio BEFORE filters
+        audio_file = None
         if req.audio_url:
             audio_file = os.path.join(AUDIO_PATH, req.audio_url.split("/")[-1])
             if os.path.exists(audio_file):
-                command.extend(["-i", audio_file, "-shortest"])
+                command.extend(["-i", audio_file])
+
+        # ✅ Filters AFTER inputs
+        command.extend([
+            "-vf", "scale=1080:1920,zoompan=z='min(zoom+0.002,1.5)',format=yuv420p",
+            "-vsync", "vfr",
+            "-pix_fmt", "yuv420p",
+            "-c:v", "libx264",
+            "-c:a", "aac"
+        ])
+
+        # ✅ shortest AFTER filters
+        if audio_file:
+            command.append("-shortest")
 
         command.append(output_path)
 
+        # 🔥 Execute
         subprocess.run(command, check=True)
 
-        # 🔥 STEP 5: Cleanup
+        # 🔥 Cleanup
         for p in image_paths:
             os.remove(p)
         os.remove(input_txt)
@@ -275,7 +288,7 @@ async def generate_reel(req: ReelRequest):
             "video_url": f"{BASE_URL}/media/videos/{output_name}",
             "slides": len(image_paths),
             "duration": len(image_paths) * req.duration_per_slide,
-            "audio_enabled": bool(req.audio_url),
+            "audio_enabled": bool(audio_file),
             "processing_time_ms": int((time.time() - start) * 1000)
         }
 
@@ -284,7 +297,6 @@ async def generate_reel(req: ReelRequest):
             "status": "error",
             "message": str(e)
         }
-
 # ------------------ HEALTH ------------------
 @app.get("/health")
 def health():
