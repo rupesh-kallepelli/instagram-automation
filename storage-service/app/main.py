@@ -302,6 +302,17 @@ async def generate_reel(req: ReelRequest):
     except Exception as e:
         return {"status": "error", "message": str(e)}
 
+def get_audio_duration(audio_path: str) -> float:
+    cmd = [
+        "ffprobe",
+        "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        audio_path
+    ]
+    result = subprocess.check_output(cmd).decode().strip()
+    return float(result)
+
 # ------------------ HEALTH ------------------
 @app.get("/health")
 def health():
