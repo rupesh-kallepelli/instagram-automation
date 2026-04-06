@@ -26,7 +26,22 @@ jobs:
         run: |
           oc project ${{ secrets.OPENSHIFT_NAMESPACE }}
 
-      - name: Restart Deployment (Safe Way)
+      - name: Restart storage-service Deployment
+        run: |
+          echo "Scaling down..."
+          oc scale deployment storage-service --replicas=0 -n ${{ secrets.OPENSHIFT_NAMESPACE }}
+
+          echo "Waiting for pods to terminate..."
+          sleep 15
+
+          echo "Scaling up..."
+          oc scale deployment storage-service --replicas=1 -n ${{ secrets.OPENSHIFT_NAMESPACE }}
+
+      - name: Wait for rollout
+        run: |
+          oc rollout status deployment/storage-service -n ${{ secrets.OPENSHIFT_NAMESPACE }}
+
+      - name: Restart n8n Deployment
         run: |
           echo "Scaling down..."
           oc scale deployment n8n --replicas=0 -n ${{ secrets.OPENSHIFT_NAMESPACE }}

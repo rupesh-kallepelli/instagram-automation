@@ -1,3 +1,5 @@
+from uuid import uuid4
+
 from fastapi import FastAPI, UploadFile, File
 import os
 import time
@@ -14,7 +16,7 @@ os.makedirs(IMAGE_PATH, exist_ok=True)
 
 
 def generate_filename(prefix, original_name):
-    return f"{prefix}_{int(time.time())}_{original_name}"
+    return f"{prefix}_{uuid4()}_{original_name}"
 
 
 @app.post("/upload/video")
