@@ -107,20 +107,22 @@ async def generate_audio(text: str = Form(...)):
         return {"status": "error", "message": str(e)}
 
 def generate_tts_piper(text: str, output_path: str):
-    """
-    Generate speech using Piper TTS (offline, CPU-only)
-    """
     subprocess.run(
         [
             "piper",
             "-m", "/voices/en_US-hfc_male-medium.onnx",
             "-c", "/voices/en_US-hfc_male-medium.onnx.json",
-            "-f", output_path
+            "-f", output_path,
+            "--length-scale", "0.95",     # slightly slower → clearer speech
+            "--noise-scale", "0.5",       # less noise → cleaner voice
+            "--noise-w-scale", "0.7",     # smoother pronunciation
+            "--sentence-silence", "0.4"   # pause between sentences
         ],
         input=text,
         text=True,
         check=True
     )
+    
 # ------------------ TEXT → SEGMENTS ------------------
 def build_tts_segments(title, problem, solution, caption):
     segments = []
